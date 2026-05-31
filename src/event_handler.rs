@@ -10,7 +10,6 @@ pub(crate) struct CustomEvent {
     blue_distribution_id: String,
     green_distribution_id: String,
     orchestrator_distribution_id: String,
-    alb_dns_name: String,
     oac_id: String
 }
 
@@ -19,7 +18,6 @@ struct WorkflowInputs {
     blue_distribution_id: String,
     green_distribution_id: String,
     orchestrator_distribution_id: String,
-    alb_dns_name: String,
     oac_id: String
 }
 
@@ -66,8 +64,7 @@ pub(crate)async fn function_handler(event: LambdaEvent<EventBridgeEvent<CustomEv
             &event.payload.detail.green_distribution_id,
             &event.payload.detail.blue_distribution_id,
             &event.payload.detail.orchestrator_distribution_id,
-            &event.payload.detail.oac_id,
-            &event.payload.detail.alb_dns_name,
+            &event.payload.detail.oac_id
         ).await
     });
 
@@ -98,8 +95,7 @@ async fn process_repo(
     green_distribution_id: &str,
     blue_distribution_id: &str,
     orchestrator_distribution_id: &str,
-    oac_id: &str,
-    alb_dns_name: &str,
+    oac_id: &str
 ) -> Result<(), Error> {
     // Paso B: Disparar Workflow Dispatch
     let dispatch_url = format!(
@@ -113,7 +109,6 @@ async fn process_repo(
             green_distribution_id: green_distribution_id.to_string(),
             orchestrator_distribution_id: orchestrator_distribution_id.to_string(),
             blue_distribution_id: blue_distribution_id.to_string(),
-            alb_dns_name: alb_dns_name.to_string(),
             oac_id: oac_id.to_string()
         }
     };
