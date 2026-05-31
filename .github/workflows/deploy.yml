@@ -1,0 +1,59 @@
+name: Deploy Cargo Lambda
+
+on:
+  push:
+    branches:
+      - main  # Trigger on push to main branch
+  workflow_dispatch:
+    inputs:
+      id_entorno:
+        description: 'ID único del entorno efímero'
+        required: false
+        type: string
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+  AWS_BUCKET_NAME: ${{ vars.AWS_BUCKET_NAME }}
+  AWS_GITHUB_S3_ROLE_NAME: ${{ vars.AWS_GITHUB_S3_ROLE_NAME }}
+
+permissions:
+  id-token: write   # Requerido si usas OIDC para autenticarte en AWS
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain with Cargo Lambda
+        uses: moonrepo/setup-rust@v1
+        with:
+          bins: cargo-lambda
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install Zig toolchain
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.13.0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.AWS_GITHUB_S3_ROLE_NAME }}
+          role-session-name: GitHubActionsS3Deployment
+
+      - name: Build Lambda
+        run: cargo lambda build --release --target x86_64-unknown-linux-musl --output-format zip
+
+      - name: Upload Artifact to S3
+        run: |
+          # Copiamos el zip generado al directorio actual renombrándolo a bootstrap.zip
+          cp target/lambda/*/*.zip ./bootstrap.zip
+          
+          # Lo subimos a S3 con el nuevo nombre
+          aws s3 cp ./bootstrap.zip s3://${{ env.AWS_BUCKET_NAME }}/
