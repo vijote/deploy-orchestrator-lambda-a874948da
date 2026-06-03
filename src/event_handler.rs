@@ -115,8 +115,8 @@ async fn process_repo(
                 .header("aws-cf-cd-staging")
                 .value("true")
                 .build()
-                .unwrap()
-        ).build().unwrap();
+                .expect("Error al construir ContinuousDeploymentSingleHeaderConfig !!!")
+        ).build().expect("Error al crear Traffic Config!!!");
 
     // 2. Crear la Continuous Deployment Policy (vinculando la Green/Staging)
     let policy_config = ContinuousDeploymentPolicyConfig::builder()
@@ -124,7 +124,7 @@ async fn process_repo(
         .traffic_config(traffic_config)
         .staging_distribution_dns_names(StagingDistributionDnsNames::builder().quantity(1)
                 .items(green_distribution_dns_name.to_string())
-                .build().unwrap())
+                .build().expect("Error al crear la policy!!!"))
         .build()?;
 
     let create_policy_res = cf_client
