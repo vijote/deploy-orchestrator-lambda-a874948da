@@ -78,7 +78,7 @@ pub(crate)async fn function_handler(event: LambdaEvent<EventBridgeEvent<CustomEv
     let mut errores = vec![];
     match tarea.await {
         Ok(Ok(_)) => {}
-        Ok(Err(e)) => errores.push(format!("Error en GitHub API: {}", e)),
+        Ok(Err(e)) => errores.push(format!("Error en process repo: {}", e)),
         Err(e) => errores.push(format!("Error crítico de Tokio Join: {}", e)),
     }
 
@@ -131,7 +131,8 @@ async fn process_repo(
         .create_continuous_deployment_policy()
         .continuous_deployment_policy_config(policy_config)
         .send()
-        .await?;
+        .await
+        .map_err(|e| format!("Error en CloudFront (CreatePolicy): {:?}", e))?;
 
     let policy_id = create_policy_res
         .continuous_deployment_policy()
@@ -143,7 +144,8 @@ async fn process_repo(
         .get_distribution()
         .id(blue_distribution_id)
         .send()
-        .await?;
+        .await
+        .map_err(|e| format!("Error en CloudFront (GetDist {}): {:?}", blue_distribution_id, e))?;
 
     let etag = get_dist_res.e_tag().ok_or("No ETag found")?.to_string();
     let distribution = get_dist_res.distribution().ok_or("No distribution found")?;
@@ -160,7 +162,8 @@ async fn process_repo(
         .distribution_config(updated_config)
         .if_match(etag) // Requerido por CloudFront
         .send()
-        .await?;
+        .await
+        .map_err(|e| format!("Error en CloudFront (UpdateDist {}): {:?}", blue_distribution_id, e))?;
 
     // Paso B: Disparar Workflow Dispatch
     let dispatch_url = format!(
@@ -178,7 +181,13 @@ async fn process_repo(
         }
     };
 
-    let res_dispatch = client.post(&dispatch_url).json(&dispatch_body).send().await?;
+    let res_dispatch = client
+        .post(&dispatch_url)
+        .json(&dispatch_body)
+        .send()
+        .await
+        .map_err(|e| format!("Error de red/transporte al llamar a GitHub: {:?}", e))?;
+
     if !res_dispatch.status().is_success() {
         let err_text = res_dispatch.text().await.unwrap_or_default();
         return Err(Error::from(format!("Error dispatch [{}]: {}", repo, err_text)));
